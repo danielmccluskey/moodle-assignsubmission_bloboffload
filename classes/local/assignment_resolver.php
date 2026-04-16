@@ -16,8 +16,6 @@
 
 namespace assignsubmission_bloboffload\local;
 
-defined('MOODLE_INTERNAL') || die();
-
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
 /**

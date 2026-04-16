@@ -16,8 +16,6 @@
 
 namespace assignsubmission_bloboffload\external;
 
-defined('MOODLE_INTERNAL') || die();
-
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
 use assignsubmission_bloboffload\local\assignment_resolver;

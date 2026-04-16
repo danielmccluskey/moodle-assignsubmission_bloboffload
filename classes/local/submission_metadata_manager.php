@@ -16,8 +16,6 @@
 
 namespace assignsubmission_bloboffload\local;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Handles plugin metadata persistence.
  *
@@ -40,7 +38,8 @@ class submission_metadata_manager {
         global $DB;
         [$insql, $params] = $DB->get_in_or_equal(self::ACTIVE_STATES, SQL_PARAMS_NAMED);
         $params['submissionid'] = $submissionid;
-        return $DB->get_records_select('assignsubmission_bloboffload_file',
+        return $DB->get_records_select(
+            'assignsubmission_bloboffload_file',
             "submissionid = :submissionid AND state $insql",
             $params,
             'timecreated ASC, id ASC'

@@ -16,8 +16,6 @@
 
 namespace assignsubmission_bloboffload\external;
 
-defined('MOODLE_INTERNAL') || die();
-
 use assignsubmission_bloboffload\local\azure_blob_storage_service;
 use assignsubmission_bloboffload\local\blob_path_builder;
 use core_external\external_function_parameters;

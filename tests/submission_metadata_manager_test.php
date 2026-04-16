@@ -16,8 +16,6 @@
 
 namespace assignsubmission_bloboffload;
 
-defined('MOODLE_INTERNAL') || die();
-
 use assignsubmission_bloboffload\local\submission_metadata_manager;
 
 /**

@@ -16,8 +16,6 @@
 
 namespace assignsubmission_bloboffload\local;
 
-defined('MOODLE_INTERNAL') || die();
-
 require_once($CFG->libdir . '/filelib.php');
 
 /**
@@ -199,7 +197,14 @@ class azure_blob_storage_service {
             '',
         ]);
 
-        $signature = base64_encode(hash_hmac('sha256', $stringtosign, base64_decode($this->accountkey), true));
+        $signature = base64_encode(
+            hash_hmac(
+                'sha256',
+                $stringtosign,
+                base64_decode($this->accountkey),
+                true
+            )
+        );
 
         return http_build_query([
             'sv' => $version,
