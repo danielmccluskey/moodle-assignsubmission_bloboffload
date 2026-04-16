@@ -1,7 +1,25 @@
-{{! This file is part of Moodle - http://moodle.org/ }}
-{{! @copyright 2026 Daniel McCluskey }}
-{{! @author Daniel McCluskey }}
-{{! @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later }}
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    @template assignsubmission_bloboffload/file_list
+
+    Displays a read-only list of uploaded files.
+
+    Example context (json):
+    {
+        "hasfiles": true,
+        "nofileslabel": "No uploaded files",
+        "files": [
+            {
+                "id": 1,
+                "filename": "Essay.docx",
+                "filesize": "12 KB",
+                "mimetype": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "downloadurl": "https://example.invalid/download.php?fileid=1"
+            }
+        ]
+    }
+}}
 
 {{#hasfiles}}
 <ul class="assignsubmission-bloboffload__files">
