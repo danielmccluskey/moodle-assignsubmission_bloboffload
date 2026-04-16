@@ -69,8 +69,10 @@ class delete_upload extends external_base {
         $submission = self::resolve_submission($assignment, true);
 
         $file = self::manager()->get_file_by_id($fileid);
-        if ((int)$file->userid !== (int)$USER->id
-                || (int)$file->submissionid !== (int)$submission->id) {
+        if (
+            (int)$file->userid !== (int)$USER->id
+                || (int)$file->submissionid !== (int)$submission->id
+        ) {
             throw new \moodle_exception(
                 'error:filenotfound',
                 'assignsubmission_bloboffload'

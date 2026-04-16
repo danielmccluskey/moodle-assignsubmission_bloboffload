@@ -81,24 +81,30 @@ class get_upload_target extends external_base {
         $config = self::get_plugin_config($assignment);
         $manager = self::manager();
         $util = new \core_form\filetypes_util();
-        if (count($manager->get_submission_files((int)$submission->id))
-                >= (int)$config['maxfilesubmissions']) {
+        if (
+            count($manager->get_submission_files((int)$submission->id))
+                >= (int)$config['maxfilesubmissions']
+        ) {
             throw new \moodle_exception(
                 'maxfilesreached',
                 'assignsubmission_bloboffload'
             );
         }
-        if ((int)$config['maxsubmissionsizebytes'] > 0
-                && $filesize > (int)$config['maxsubmissionsizebytes']) {
+        if (
+            (int)$config['maxsubmissionsizebytes'] > 0
+                && $filesize > (int)$config['maxsubmissionsizebytes']
+        ) {
             throw new \moodle_exception(
                 'maxbytesexceeded',
                 'assignsubmission_bloboffload'
             );
         }
-        if (!$util->is_allowed_file_type(
-            $filename,
-            (string)$config['filetypeslist']
-        )) {
+        if (
+            !$util->is_allowed_file_type(
+                $filename,
+                (string)$config['filetypeslist']
+            )
+        ) {
             throw new \moodle_exception(
                 'error:filetypenotallowed',
                 'assignsubmission_bloboffload'

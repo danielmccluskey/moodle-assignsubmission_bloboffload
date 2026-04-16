@@ -5,6 +5,14 @@
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 use core_external\external_value;
 
@@ -397,7 +405,7 @@ class assign_submission_bloboffload extends assign_submission_plugin {
      * @param bool $showviewlink
      * @return string
      */
-    public function view_summary(stdClass $submission, & $showviewlink) {
+    public function view_summary(stdClass $submission, &$showviewlink) {
         $manager = new \assignsubmission_bloboffload\local\submission_metadata_manager();
         $files = array_values($manager->get_submission_files($submission->id));
         $count = count($files);
@@ -411,7 +419,7 @@ class assign_submission_bloboffload extends assign_submission_plugin {
             return get_string('countfiles', 'assignsubmission_bloboffload', $count);
         }
 
-        $items = array_map(function($file) {
+        $items = array_map(function ($file) {
             $url = new moodle_url(
                 '/mod/assign/submission/bloboffload/download.php',
                 ['fileid' => $file->id]
