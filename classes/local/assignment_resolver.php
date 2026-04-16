@@ -23,7 +23,13 @@ class assignment_resolver {
      * @return \assign
      */
     public function get_assign(int $assignid): \assign {
-        $cm = get_coursemodule_from_instance('assign', $assignid, 0, false, MUST_EXIST);
+        $cm = get_coursemodule_from_instance(
+            'assign',
+            $assignid,
+            0,
+            false,
+            MUST_EXIST
+        );
         $context = \context_module::instance($cm->id);
         return new \assign($context, $cm, get_course($cm->course));
     }
@@ -54,7 +60,10 @@ class assignment_resolver {
     public function require_editable_submission(\assign $assignment, int $userid): void {
         require_capability('mod/assign:submit', $assignment->get_context());
         if (!$this->can_edit_submission($assignment, $userid)) {
-            throw new \moodle_exception('error:submissionnoteditable', 'assignsubmission_bloboffload');
+            throw new \moodle_exception(
+                'error:submissionnoteditable',
+                'assignsubmission_bloboffload'
+            );
         }
     }
 

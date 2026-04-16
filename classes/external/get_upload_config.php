@@ -37,12 +37,17 @@ class get_upload_config extends external_base {
      * @return array
      */
     public static function execute(int $assignid): array {
-        ['assignid' => $assignid] = self::validate_parameters(self::execute_parameters(), ['assignid' => $assignid]);
+        ['assignid' => $assignid] = self::validate_parameters(
+            self::execute_parameters(),
+            ['assignid' => $assignid]
+        );
 
         $assignment = self::resolve_assign($assignid);
         $submission = self::resolve_submission($assignment, false);
         $config = self::get_plugin_config($assignment);
-        $files = $submission ? self::manager()->get_submission_files((int)$submission->id) : [];
+        $files = $submission
+            ? self::manager()->get_submission_files((int)$submission->id)
+            : [];
 
         return [
             'submissionid' => $submission ? (int)$submission->id : 0,
@@ -52,7 +57,9 @@ class get_upload_config extends external_base {
                 ? display_size((int)$config['maxsubmissionsizebytes'])
                 : '',
             'filetypeslist' => (string)$config['filetypeslist'],
-            'acceptedtypeslabel' => self::get_accepted_types_label((string)$config['filetypeslist']),
+            'acceptedtypeslabel' => self::get_accepted_types_label(
+                (string)$config['filetypeslist']
+            ),
             'acceptattr' => self::get_accept_attribute((string)$config['filetypeslist']),
             'files' => self::export_files($files),
         ];
@@ -68,19 +75,42 @@ class get_upload_config extends external_base {
             'submissionid' => new external_value(PARAM_INT, 'Submission id'),
             'maxfiles' => new external_value(PARAM_INT, 'Maximum file count'),
             'maxbytes' => new external_value(PARAM_INT, 'Maximum bytes'),
-            'maxbyteslabel' => new external_value(PARAM_RAW, 'Display maximum bytes label'),
-            'filetypeslist' => new external_value(PARAM_RAW, 'Configured file types list'),
-            'acceptedtypeslabel' => new external_value(PARAM_RAW, 'Human-readable accepted file types label'),
-            'acceptattr' => new external_value(PARAM_RAW, 'HTML accept attribute value'),
-            'files' => new external_multiple_structure(new external_single_structure([
-                'id' => new external_value(PARAM_INT, 'Metadata file id'),
-                'filename' => new external_value(PARAM_RAW, 'Original filename'),
-                'filesize' => new external_value(PARAM_RAW, 'Display file size'),
-                'mimetype' => new external_value(PARAM_RAW, 'Mime type'),
-                'state' => new external_value(PARAM_RAW, 'File state'),
-                'downloadurl' => new external_value(PARAM_URL, 'Download URL'),
-                'viewurl' => new external_value(PARAM_URL, 'View URL'),
-            ])),
+            'maxbyteslabel' => new external_value(
+                PARAM_RAW,
+                'Display maximum bytes label'
+            ),
+            'filetypeslist' => new external_value(
+                PARAM_RAW,
+                'Configured file types list'
+            ),
+            'acceptedtypeslabel' => new external_value(
+                PARAM_RAW,
+                'Human-readable accepted file types label'
+            ),
+            'acceptattr' => new external_value(
+                PARAM_RAW,
+                'HTML accept attribute value'
+            ),
+            'files' => new external_multiple_structure(
+                new external_single_structure([
+                    'id' => new external_value(PARAM_INT, 'Metadata file id'),
+                    'filename' => new external_value(
+                        PARAM_RAW,
+                        'Original filename'
+                    ),
+                    'filesize' => new external_value(
+                        PARAM_RAW,
+                        'Display file size'
+                    ),
+                    'mimetype' => new external_value(PARAM_RAW, 'Mime type'),
+                    'state' => new external_value(PARAM_RAW, 'File state'),
+                    'downloadurl' => new external_value(
+                        PARAM_URL,
+                        'Download URL'
+                    ),
+                    'viewurl' => new external_value(PARAM_URL, 'View URL'),
+                ])
+            ),
         ]);
     }
 
@@ -90,7 +120,9 @@ class get_upload_config extends external_base {
      * @param string $filetypeslist
      * @return string
      */
-    private static function get_accepted_types_label(string $filetypeslist): string {
+    private static function get_accepted_types_label(
+        string $filetypeslist
+    ): string {
         if ($filetypeslist === '') {
             return '';
         }
@@ -112,7 +144,12 @@ class get_upload_config extends external_base {
 
         $util = new \core_form\filetypes_util();
         $description = $util->describe_file_types($filetypeslist);
-        $extensions = preg_split('/\s+/', trim((string)$description->allowedextensions), -1, PREG_SPLIT_NO_EMPTY);
+        $extensions = preg_split(
+            '/\s+/',
+            trim((string)$description->allowedextensions),
+            -1,
+            PREG_SPLIT_NO_EMPTY
+        );
         return implode(',', $extensions ?: []);
     }
 }

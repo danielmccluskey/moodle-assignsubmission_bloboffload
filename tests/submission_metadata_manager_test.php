@@ -67,7 +67,21 @@ final class submission_metadata_manager_test extends \advanced_testcase {
 
         $manager->sync_submission_files(10, 20, [$file1->id]);
 
-        $this->assertSame('available', $DB->get_field('assignsubmission_bloboffload_file', 'state', ['id' => $file1->id]));
-        $this->assertSame('deleted', $DB->get_field('assignsubmission_bloboffload_file', 'state', ['id' => $file2->id]));
+        $this->assertSame(
+            'available',
+            $DB->get_field(
+                'assignsubmission_bloboffload_file',
+                'state',
+                ['id' => $file1->id]
+            )
+        );
+        $this->assertSame(
+            'deleted',
+            $DB->get_field(
+                'assignsubmission_bloboffload_file',
+                'state',
+                ['id' => $file2->id]
+            )
+        );
     }
 }

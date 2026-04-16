@@ -29,7 +29,13 @@ class blob_path_builder {
      * @param string $uuid
      * @return string
      */
-    public function build(\assign $assignment, \stdClass $submission, int $userid, string $originalfilename, string $uuid): string {
+    public function build(
+        \assign $assignment,
+        \stdClass $submission,
+        int $userid,
+        string $originalfilename,
+        string $uuid
+    ): string {
         $filename = $this->sanitize_filename($originalfilename);
 
         return implode('/', [
@@ -51,7 +57,11 @@ class blob_path_builder {
      * @param int $userid
      * @return string
      */
-    public function build_prefix(\assign $assignment, \stdClass $submission, int $userid): string {
+    public function build_prefix(
+        \assign $assignment,
+        \stdClass $submission,
+        int $userid
+    ): string {
         return implode('/', [
             'course-' . $assignment->get_course()->id,
             'cm-' . $assignment->get_course_module()->id,
@@ -72,7 +82,10 @@ class blob_path_builder {
         $filename = clean_param($filename, PARAM_FILE);
         $filename = trim($filename);
         if ($filename === '' || $filename === '.' || $filename === '..') {
-            throw new \moodle_exception('error:invalidfilename', 'assignsubmission_bloboffload');
+            throw new \moodle_exception(
+                'error:invalidfilename',
+                'assignsubmission_bloboffload'
+            );
         }
 
         return $filename;

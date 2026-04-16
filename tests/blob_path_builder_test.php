@@ -31,10 +31,17 @@ final class blob_path_builder_test extends \advanced_testcase {
         $assignment->method('get_instance')->willReturn((object)['id' => 56]);
         $submission = (object)['id' => 78, 'attemptnumber' => 2];
 
-        $path = $builder->build($assignment, $submission, 90, 'Essay Final.docx', 'abc123');
+        $path = $builder->build(
+            $assignment,
+            $submission,
+            90,
+            'Essay Final.docx',
+            'abc123'
+        );
 
         $this->assertSame(
-            'course-12/cm-34/assign-56/submission-78/attempt-2/user-90/abc123__Essay Final.docx',
+            'course-12/cm-34/assign-56/submission-78/attempt-2/'
+                . 'user-90/abc123__Essay Final.docx',
             $path
         );
     }

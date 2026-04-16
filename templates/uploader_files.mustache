@@ -9,11 +9,17 @@
     <li class="assignsubmission-bloboffload__file" data-fileid="{{id}}">
         <div>
             <div><a href="{{downloadurl}}">{{filename}}</a></div>
-            <div class="assignsubmission-bloboffload__meta">{{filesize}}{{#mimetype}} | {{mimetype}}{{/mimetype}}</div>
+            <div class="assignsubmission-bloboffload__meta">
+                {{filesize}}{{#mimetype}} | {{mimetype}}{{/mimetype}}
+            </div>
         </div>
         <div class="assignsubmission-bloboffload__actions">
-            <a href="{{downloadurl}}">{{#str}}download, assignsubmission_bloboffload{{/str}}</a>
-            <button type="button" data-action="delete">{{#str}}delete, assignsubmission_bloboffload{{/str}}</button>
+            <a href="{{downloadurl}}">
+                {{#str}}download, assignsubmission_bloboffload{{/str}}
+            </a>
+            <button type="button" data-action="delete">
+                {{#str}}delete, assignsubmission_bloboffload{{/str}}
+            </button>
         </div>
     </li>
     {{/files}}
