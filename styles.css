@@ -1,0 +1,214 @@
+/*
+ * This file is part of Moodle - http://moodle.org/
+ *
+ * @copyright  2026 Daniel McCluskey
+ * @author     Daniel McCluskey
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+.assignsubmission-bloboffload {
+    --bloboffload-surface: var(--white, #fff);
+    --bloboffload-surface-subtle: var(--light, #f8f9fa);
+    --bloboffload-border: var(--border-color, #dee2e6);
+    --bloboffload-text: var(--body-color, #212529);
+    --bloboffload-text-muted: var(--secondary, #6c757d);
+    --bloboffload-primary: var(--primary, #0f6cbf);
+    color: var(--bloboffload-text);
+}
+
+.assignsubmission-bloboffload__panel {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--bloboffload-border);
+    border-radius: .5rem;
+    background: var(--bloboffload-surface);
+}
+
+.assignsubmission-bloboffload__eyebrow {
+    color: var(--bloboffload-text-muted);
+    font-size: .875rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.assignsubmission-bloboffload__label {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    margin: 0;
+}
+
+.assignsubmission-bloboffload__prompt {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.assignsubmission-bloboffload__input {
+    max-width: 100%;
+}
+
+.assignsubmission-bloboffload__meta {
+    color: var(--bloboffload-text-muted);
+    font-size: .875rem;
+}
+
+.assignsubmission-bloboffload__messages {
+    margin-bottom: 1rem;
+}
+
+.assignsubmission-bloboffload__messages:empty {
+    display: none;
+}
+
+.assignsubmission-bloboffload__messages > :last-child {
+    margin-bottom: 0;
+}
+
+.assignsubmission-bloboffload__progresscard {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    margin-bottom: 1rem;
+    padding: .875rem 1rem;
+    border: 1px solid var(--bloboffload-border);
+    border-radius: .5rem;
+    background: var(--bloboffload-surface-subtle);
+}
+
+.assignsubmission-bloboffload__progresshead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+}
+
+.assignsubmission-bloboffload__progressname {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.assignsubmission-bloboffload__progresspercent {
+    flex: 0 0 auto;
+    color: var(--bloboffload-text-muted);
+    font-size: .875rem;
+    font-weight: 600;
+}
+
+.assignsubmission-bloboffload__progressbar {
+    position: relative;
+    width: 100%;
+    height: .5rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--bloboffload-border);
+}
+
+.assignsubmission-bloboffload__progressvalue {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--bloboffload-primary);
+    transition: width .2s ease;
+}
+
+.assignsubmission-bloboffload__section {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+
+.assignsubmission-bloboffload__sectionhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+}
+
+.assignsubmission-bloboffload__heading {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.assignsubmission-bloboffload__countbadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.75rem;
+    padding: .125rem .5rem;
+    border: 1px solid var(--bloboffload-border);
+    border-radius: 999px;
+    background: var(--bloboffload-surface-subtle);
+    color: var(--bloboffload-text-muted);
+    font-size: .8125rem;
+    font-weight: 600;
+}
+
+.assignsubmission-bloboffload__empty {
+    padding: .875rem 1rem;
+    border: 1px solid var(--bloboffload-border);
+    border-radius: .5rem;
+    background: var(--bloboffload-surface-subtle);
+    color: var(--bloboffload-text-muted);
+}
+
+.assignsubmission-bloboffload__files {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border: 1px solid var(--bloboffload-border);
+    border-radius: .5rem;
+    background: var(--bloboffload-surface);
+}
+
+.assignsubmission-bloboffload__file {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .875rem 1rem;
+    border-top: 1px solid var(--bloboffload-border);
+}
+
+.assignsubmission-bloboffload__file:first-child {
+    border-top: 0;
+}
+
+.assignsubmission-bloboffload__filebody {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.assignsubmission-bloboffload__filename {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.assignsubmission-bloboffload__filemeta {
+    margin-top: .25rem;
+    color: var(--bloboffload-text-muted);
+    font-size: .875rem;
+}
+
+.assignsubmission-bloboffload__actions {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+    flex: 0 0 auto;
+}
+
+.assignsubmission-bloboffload__actions .btn {
+    white-space: nowrap;
+}
+
+@media (max-width: 767.98px) {
+    .assignsubmission-bloboffload__file {
+        flex-direction: column;
+    }
+
+    .assignsubmission-bloboffload__actions {
+        width: 100%;
+    }
+}

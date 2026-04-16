@@ -1,0 +1,23 @@
+{{! This file is part of Moodle - http://moodle.org/ }}
+{{! @copyright 2026 Daniel McCluskey }}
+{{! @author Daniel McCluskey }}
+{{! @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later }}
+
+{{#hasfiles}}
+<ul class="assignsubmission-bloboffload__files">
+    {{#files}}
+    <li class="assignsubmission-bloboffload__file">
+        <div>
+            <div><a href="{{downloadurl}}">{{filename}}</a></div>
+            <div class="assignsubmission-bloboffload__meta">{{filesize}}{{#mimetype}} | {{mimetype}}{{/mimetype}}</div>
+        </div>
+        <div class="assignsubmission-bloboffload__actions">
+            <a href="{{downloadurl}}">{{#str}}download, assignsubmission_bloboffload{{/str}}</a>
+        </div>
+    </li>
+    {{/files}}
+</ul>
+{{/hasfiles}}
+{{^hasfiles}}
+<div>{{nofileslabel}}</div>
+{{/hasfiles}}
