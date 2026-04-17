@@ -14,7 +14,7 @@ jobs:
           POSTGRES_HOST_AUTH_METHOD: 'trust'
         ports:
           - 5432:5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 3
+        options: --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 3
 
       mariadb:
         image: mariadb:10
@@ -59,7 +59,12 @@ jobs:
           echo "NVM_DIR=$HOME/.nvm" >> $GITHUB_ENV
 
       - name: Install moodle-plugin-ci
-        run: moodle-plugin-ci install --plugin ./plugin --db-host=127.0.0.1
+        run: |
+          dbuser=root
+          if [ "${{ matrix.database }}" = "pgsql" ]; then
+            dbuser=postgres
+          fi
+          moodle-plugin-ci install --plugin ./plugin --db-host=127.0.0.1 --db-user="$dbuser"
         env:
           DB: ${{ matrix.database }}
           MOODLE_BRANCH: ${{ matrix.moodle-branch }}
