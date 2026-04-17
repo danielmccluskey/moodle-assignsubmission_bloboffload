@@ -19,6 +19,11 @@ namespace assignsubmission_bloboffload;
 use assignsubmission_bloboffload\local\submission_metadata_manager;
 use PHPUnit\Framework\Attributes\CoversClass;
 
+defined('MOODLE_INTERNAL') || die();
+
+global $CFG;
+require_once($CFG->dirroot . '/mod/assign/locallib.php');
+
 /**
  * Tests for metadata persistence.
  *
@@ -30,6 +35,39 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(submission_metadata_manager::class)]
 final class submission_metadata_manager_test extends \advanced_testcase {
     /**
+     * Create a real assignment submission for testing.
+     *
+     * @return \stdClass
+     */
+    private function create_assignment_submission(): \stdClass {
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($student->id, $course->id);
+
+        $instance = $this->getDataGenerator()->get_plugin_generator('mod_assign')
+            ->create_instance(['course' => $course->id]);
+        $cm = get_coursemodule_from_instance(
+            'assign',
+            $instance->id,
+            $course->id,
+            false,
+            MUST_EXIST
+        );
+        $context = \context_module::instance($cm->id);
+        $assignment = new \assign($context, $cm, $course);
+
+        $this->setUser($student);
+        $submission = $assignment->get_user_submission($student->id, true);
+
+        return (object)[
+            'assignmentid' => (int)$instance->id,
+            'submissionid' => (int)$submission->id,
+            'attemptnumber' => (int)$submission->attemptnumber,
+            'userid' => (int)$student->id,
+        ];
+    }
+
+    /**
      * Test sync_submission_files marks only selected files active.
      *
      * @return void
@@ -39,10 +77,11 @@ final class submission_metadata_manager_test extends \advanced_testcase {
 
         $this->resetAfterTest();
         $manager = new submission_metadata_manager();
+        $fixture = $this->create_assignment_submission();
 
         $summary = (object)[
-            'assignment' => 10,
-            'submission' => 20,
+            'assignment' => $fixture->assignmentid,
+            'submission' => $fixture->submissionid,
             'filecount' => 0,
             'lastuploadtime' => 0,
             'timemodified' => time(),
@@ -50,9 +89,9 @@ final class submission_metadata_manager_test extends \advanced_testcase {
         $DB->insert_record('assignsubmission_bloboffload', $summary);
 
         $file1 = (object)[
-            'submissionid' => 20,
-            'attemptnumber' => 0,
-            'userid' => 5,
+            'submissionid' => $fixture->submissionid,
+            'attemptnumber' => $fixture->attemptnumber,
+            'userid' => $fixture->userid,
             'uploadtoken' => 'token1',
             'blobpath' => 'a',
             'bloburl' => 'https://example.invalid/a',
@@ -77,7 +116,11 @@ final class submission_metadata_manager_test extends \advanced_testcase {
         $file1->id = $DB->insert_record('assignsubmission_bloboffload_file', $file1);
         $file2->id = $DB->insert_record('assignsubmission_bloboffload_file', $file2);
 
-        $manager->sync_submission_files(10, 20, [$file1->id]);
+        $manager->sync_submission_files(
+            $fixture->assignmentid,
+            $fixture->submissionid,
+            [$file1->id]
+        );
 
         $this->assertSame(
             'available',

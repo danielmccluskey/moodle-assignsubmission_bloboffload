@@ -18,6 +18,7 @@ namespace assignsubmission_bloboffload\local;
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->libdir . '/filelib.php');
 
 /**
