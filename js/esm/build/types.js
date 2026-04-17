@@ -1,4 +1,3 @@
-var i=o=>new Promise((r,n)=>{if(typeof window.require!="function"){n(new Error("Moodle AMD loader is unavailable."));return}window.require(o,(...e)=>r(e),n)});export{i as requireAmd};
 /*
  * This file is part of Moodle - http://moodle.org/
  *
