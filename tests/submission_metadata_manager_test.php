@@ -17,6 +17,7 @@
 namespace assignsubmission_bloboffload;
 
 use assignsubmission_bloboffload\local\submission_metadata_manager;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * Tests for metadata persistence.
@@ -25,8 +26,8 @@ use assignsubmission_bloboffload\local\submission_metadata_manager;
  * @copyright  2026 Daniel McCluskey
  * @author     Daniel McCluskey
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers \assignsubmission_bloboffload\local\submission_metadata_manager
  */
+#[CoversClass(submission_metadata_manager::class)]
 final class submission_metadata_manager_test extends \advanced_testcase {
     /**
      * Test sync_submission_files marks only selected files active.

@@ -23,8 +23,8 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['accountkey'] = 'Azure storage account key';
 $string['acceptedfiletypes'] = 'Accepted file types';
+$string['accountkey'] = 'Azure storage account key';
 $string['accountkey_desc'] = 'Shared key for the Azure storage account.';
 $string['bloboffload'] = 'Blob offload';
 $string['containername'] = 'Container name';

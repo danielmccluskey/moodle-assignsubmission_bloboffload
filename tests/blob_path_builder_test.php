@@ -17,6 +17,11 @@
 namespace assignsubmission_bloboffload;
 
 use assignsubmission_bloboffload\local\blob_path_builder;
+use PHPUnit\Framework\Attributes\CoversClass;
+
+defined('MOODLE_INTERNAL') || die();
+
+require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
 /**
  * Tests for blob path generation.
@@ -25,8 +30,8 @@ use assignsubmission_bloboffload\local\blob_path_builder;
  * @copyright  2026 Daniel McCluskey
  * @author     Daniel McCluskey
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers \assignsubmission_bloboffload\local\blob_path_builder
  */
+#[CoversClass(blob_path_builder::class)]
 final class blob_path_builder_test extends \advanced_testcase {
     /**
      * Test blob path shape.
