@@ -24,8 +24,8 @@
  */
 
 $string['accountkey'] = 'Azure storage account key';
-$string['accountkey_desc'] = 'Shared key for the Azure storage account.';
 $string['acceptedfiletypes'] = 'Accepted file types';
+$string['accountkey_desc'] = 'Shared key for the Azure storage account.';
 $string['bloboffload'] = 'Blob offload';
 $string['containername'] = 'Container name';
 $string['containername_desc'] =
@@ -47,9 +47,9 @@ $string['endpointsuffix_desc'] =
 $string['error:azureconfigmissing'] = 'Azure Blob Storage settings are incomplete.';
 $string['error:blobdeletefailed'] =
     'The file could not be deleted from Azure storage.';
+$string['error:filenotfound'] = 'The requested file metadata could not be found.';
 $string['error:fileoutsideprefix'] =
     'The uploaded blob path does not match the expected submission path.';
-$string['error:filenotfound'] = 'The requested file metadata could not be found.';
 $string['error:filetypenotallowed'] =
     'That file type is not allowed for this assignment.';
 $string['error:forbiddendownload'] = 'You are not allowed to access this file.';
@@ -61,8 +61,8 @@ $string['invalidpayload'] = 'Invalid blob offload submission payload.';
 $string['invaliduploadtoken'] = 'Invalid upload token.';
 $string['loading'] = 'Loading uploader';
 $string['maxbytesexceeded'] = 'The file exceeds the allowed maximum upload size.';
-$string['maxfilessubmission'] = 'Maximum uploaded files';
 $string['maxfilesreached'] = 'Maximum number of files reached for this assignment.';
+$string['maxfilessubmission'] = 'Maximum uploaded files';
 $string['maximumsubmissionsize'] = 'Maximum submission size';
 $string['noconfiguration'] = 'Blob offload is not fully configured yet.';
 $string['nofiles'] = 'No uploaded files';

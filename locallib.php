@@ -552,5 +552,4 @@ class assign_submission_bloboffload extends assign_submission_plugin {
         )));
         return ['fileids' => $fileids];
     }
-
 }

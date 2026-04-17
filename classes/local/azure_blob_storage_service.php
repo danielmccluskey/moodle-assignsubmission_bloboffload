@@ -16,6 +16,8 @@
 
 namespace assignsubmission_bloboffload\local;
 
+defined('MOODLE_INTERNAL') || die();
+
 require_once($CFG->libdir . '/filelib.php');
 
 /**
@@ -154,8 +156,13 @@ class azure_blob_storage_service {
         }
 
         if ($statuscode < 200 || $statuscode >= 300) {
-            throw new \moodle_exception('error:blobdeletefailed', 'assignsubmission_bloboffload', '', null,
-                'Azure returned HTTP ' . $statuscode . ' while deleting blob.');
+            throw new \moodle_exception(
+                'error:blobdeletefailed',
+                'assignsubmission_bloboffload',
+                '',
+                null,
+                'Azure returned HTTP ' . $statuscode . ' while deleting blob.'
+            );
         }
     }
 
