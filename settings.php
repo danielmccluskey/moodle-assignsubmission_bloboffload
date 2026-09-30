@@ -27,6 +27,41 @@ defined('MOODLE_INTERNAL') || die();
 
 if ($ADMIN->fulltree) {
     $settings->add(new admin_setting_configtext(
+        'assignsubmission_bloboffload/displayname',
+        get_string('displayname', 'assignsubmission_bloboffload'),
+        get_string('displayname_desc', 'assignsubmission_bloboffload'),
+        '',
+        PARAM_TEXT
+    ));
+
+    $settings->add(new class(
+        'assignsubmission_bloboffload/allowedcourseids',
+        get_string('allowedcourseids', 'assignsubmission_bloboffload'),
+        get_string('allowedcourseids_desc', 'assignsubmission_bloboffload'),
+        ''
+    ) extends admin_setting_configtextarea {
+        /**
+         * Accept only positive course IDs separated by commas or whitespace.
+         *
+         * @param string $data
+         * @return string|true
+         */
+        public function validate($data) {
+            $value = trim((string)$data);
+            if ($value === '*') {
+                return parent::validate($data);
+            }
+            $tokens = preg_split('/[\s,]+/', $value, -1, PREG_SPLIT_NO_EMPTY);
+            foreach ($tokens ?: [] as $token) {
+                if (!preg_match('/^[1-9][0-9]*$/', $token)) {
+                    return get_string('invalidcourseids', 'assignsubmission_bloboffload');
+                }
+            }
+            return parent::validate($data);
+        }
+    });
+
+    $settings->add(new admin_setting_configtext(
         'assignsubmission_bloboffload/storageaccount',
         get_string('storageaccount', 'assignsubmission_bloboffload'),
         get_string('storageaccount_desc', 'assignsubmission_bloboffload'),

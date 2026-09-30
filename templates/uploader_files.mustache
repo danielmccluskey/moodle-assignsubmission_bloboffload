@@ -26,13 +26,13 @@
     {{#files}}
     <li class="assignsubmission-bloboffload__file" data-fileid="{{id}}">
         <div>
-            <div><a href="{{downloadurl}}">{{filename}}</a></div>
+            <div><a href="{{downloadurl}}" target="_blank" rel="noopener noreferrer">{{filename}}</a></div>
             <div class="assignsubmission-bloboffload__meta">
                 {{filesize}}{{#mimetype}} | {{mimetype}}{{/mimetype}}
             </div>
         </div>
         <div class="assignsubmission-bloboffload__actions">
-            <a href="{{downloadurl}}">
+            <a href="{{downloadurl}}" target="_blank" rel="noopener noreferrer">
                 {{#str}}download, assignsubmission_bloboffload{{/str}}
             </a>
             <button type="button" data-action="delete">

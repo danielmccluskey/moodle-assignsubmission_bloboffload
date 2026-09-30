@@ -46,7 +46,9 @@ require_login($assignment->get_course(), false, $assignment->get_course_module()
 $context = $assignment->get_context();
 
 $cangrade = has_capability('mod/assign:viewgrades', $context);
-$isowner = ((int)$file->userid === (int)$USER->id);
+$usersubmission = $resolver->get_submission($assignment, (int)$USER->id, false);
+$isowner = has_capability('mod/assign:submit', $context) && $usersubmission &&
+    (int)$usersubmission->id === (int)$submission->id;
 if (!$cangrade && !$isowner) {
     throw new moodle_exception(
         'error:forbiddendownload',

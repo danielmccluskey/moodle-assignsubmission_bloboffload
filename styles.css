@@ -27,13 +27,6 @@
     background: var(--bloboffload-surface);
 }
 
-.assignsubmission-bloboffload__eyebrow {
-    color: var(--bloboffload-text-muted);
-    font-size: .875rem;
-    font-weight: 600;
-    margin: 0;
-}
-
 .assignsubmission-bloboffload__label {
     display: flex;
     flex-direction: column;

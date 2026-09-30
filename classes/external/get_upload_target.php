@@ -76,6 +76,9 @@ class get_upload_target extends external_base {
 
         $assignment = self::resolve_assign($assignid);
         $submission = self::resolve_submission($assignment, true);
+        if ($filesize < 0) {
+            throw new \moodle_exception('invalidpayload', 'assignsubmission_bloboffload');
+        }
         $config = self::get_plugin_config($assignment);
         $manager = self::manager();
         $util = new \core_form\filetypes_util();
@@ -96,6 +99,9 @@ class get_upload_target extends external_base {
                 'maxbytesexceeded',
                 'assignsubmission_bloboffload'
             );
+        }
+        if ($filesize > azure_blob_storage_service::MAX_FILE_BYTES) {
+            throw new \moodle_exception('maxbytesexceeded', 'assignsubmission_bloboffload');
         }
         if (
             !$util->is_allowed_file_type(
@@ -119,10 +125,29 @@ class get_upload_target extends external_base {
             bin2hex(random_bytes(8))
         );
         $storage = new azure_blob_storage_service();
+        $expiry = min(
+            azure_blob_storage_service::MAX_UPLOAD_AGE_SECONDS,
+            max(60, (int)get_config('assignsubmission_bloboffload', 'uploadsasexpiry'))
+        );
         $target = $storage->get_upload_target(
             $blobpath,
-            (int)get_config('assignsubmission_bloboffload', 'uploadsasexpiry')
+            $expiry
         );
+
+        // Moodle's AJAX endpoint uses a read-only session, so keep this target in DB.
+        $manager->finalize_upload($submission, (int)$USER->id, [
+            'uploadtoken' => $uploadtoken,
+            'blobpath' => $blobpath,
+            'bloburl' => $target['bloburl'],
+            'originalfilename' => $filename,
+            'storedfilename' => basename($blobpath),
+            'filesize' => $filesize,
+            'mimetype' => $mimetype,
+            'contenthash' => '',
+            'etag' => '',
+            'state' => 'pending',
+            'metadatajson' => ['expiresat' => $target['expiresat']],
+        ]);
 
         return [
             'submissionid' => (int)$submission->id,

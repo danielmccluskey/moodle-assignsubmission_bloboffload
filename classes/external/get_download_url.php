@@ -50,7 +50,7 @@ class get_download_url extends external_base {
      * @return array
      */
     public static function execute(int $assignid, int $fileid): array {
-        global $USER;
+        global $DB;
 
         [
             'assignid' => $assignid,
@@ -65,6 +65,10 @@ class get_download_url extends external_base {
 
         $assignment = self::resolve_assign($assignid);
         $file = self::manager()->get_active_file_by_id($fileid);
+        $filesubmission = $DB->get_record('assign_submission', ['id' => $file->submissionid], 'assignment', MUST_EXIST);
+        if ((int)$filesubmission->assignment !== $assignid) {
+            throw new \moodle_exception('error:filenotfound', 'assignsubmission_bloboffload');
+        }
         $submission = self::resolve_submission($assignment, false);
 
         $cangrade = has_capability(
@@ -73,7 +77,7 @@ class get_download_url extends external_base {
         );
         $isowner = $submission
             && (int)$submission->id === (int)$file->submissionid
-            && (int)$file->userid === (int)$USER->id;
+            && has_capability('mod/assign:submit', $assignment->get_context());
         if (!$cangrade && !$isowner) {
             throw new \moodle_exception(
                 'error:forbiddendownload',

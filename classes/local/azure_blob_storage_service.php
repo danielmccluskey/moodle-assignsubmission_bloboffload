@@ -30,6 +30,10 @@ require_once($CFG->libdir . '/filelib.php');
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class azure_blob_storage_service {
+    /** Maximum assignment file size supported by this uploader (20 GiB). */
+    public const MAX_FILE_BYTES = 20 * 1024 * 1024 * 1024;
+    /** Pending uploads may renew their SAS for up to one day. */
+    public const MAX_UPLOAD_AGE_SECONDS = 24 * 60 * 60;
     /** @var int */
     private const DELETE_SAS_EXPIRY_SECONDS = 60;
 
@@ -128,6 +132,29 @@ class azure_blob_storage_service {
     }
 
     /**
+     * Confirm that Azure has the uploaded bytes before recording a submission file.
+     *
+     * @param string $blobpath
+     * @param int $expectedsize
+     * @return string Azure ETag
+     */
+    public function verify_uploaded_blob(string $blobpath, int $expectedsize): string {
+        $url = $this->get_read_url($blobpath, 60);
+        $curl = new \curl();
+        $curl->setHeader(['x-ms-version: 2023-11-03']);
+        $response = $curl->head($url);
+        $status = (int)($curl->get_info()['http_code'] ?? 0);
+
+        if ($status !== 200 || !preg_match('/^content-length:\s*(\d+)\s*$/im', $response, $size) ||
+                (int)$size[1] !== $expectedsize ||
+                !preg_match('/^etag:\s*(\S+)\s*$/im', $response, $etag)) {
+            throw new \moodle_exception('error:blobverificationfailed', 'assignsubmission_bloboffload');
+        }
+
+        return $etag[1];
+    }
+
+    /**
      * Delete a blob from Azure storage.
      *
      * Missing blobs are treated as already deleted.
@@ -138,17 +165,24 @@ class azure_blob_storage_service {
     public function delete_blob(string $blobpath): void {
         $url = $this->get_blob_url($blobpath) . '?' .
             $this->build_blob_sas($blobpath, 'd', self::DELETE_SAS_EXPIRY_SECONDS);
-        $curl = new \curl();
-        $options = [
-            'CURLOPT_CUSTOMREQUEST' => 'DELETE',
-            'CURLOPT_RETURNTRANSFER' => true,
-            'CURLOPT_HEADER' => true,
-        ];
-        $headers = [
+        // Moodle's curl::delete() sets HTTP Basic credentials, which Azure treats
+        // as an Authorization header instead of using the SAS in the URL.
+        $curl = new class extends \curl {
+            /**
+             * Send an Azure SAS DELETE without adding HTTP Basic credentials.
+             *
+             * @param string $url
+             * @return string
+             */
+            public function delete_with_sas(string $url) {
+                return $this->request($url, ['CURLOPT_CUSTOMREQUEST' => 'DELETE']);
+            }
+        };
+        $curl->setHeader([
             'x-ms-version: 2023-11-03',
-        ];
-
-        $response = $curl->get($url, null, $options, $headers);
+            'x-ms-delete-snapshots: include',
+        ]);
+        $response = $curl->delete_with_sas($url);
         $info = $curl->get_info();
         $statuscode = (int)($info['http_code'] ?? 0);
 
@@ -157,12 +191,17 @@ class azure_blob_storage_service {
         }
 
         if ($statuscode < 200 || $statuscode >= 300) {
+            $reason = 'HTTP ' . $statuscode;
+            if (preg_match('/<Code>([A-Za-z0-9]+)<\/Code>/', (string)$response, $matches)) {
+                $reason .= ': ' . $matches[1];
+            } else if ($statuscode === 0) {
+                $reason .= ', cURL error ' . $curl->get_errno();
+            }
             throw new \moodle_exception(
                 'error:blobdeletefailed',
                 'assignsubmission_bloboffload',
                 '',
-                null,
-                'Azure returned HTTP ' . $statuscode . ' while deleting blob.'
+                $reason
             );
         }
     }

@@ -42,6 +42,14 @@ $functions = [
         'ajax' => true,
         'capabilities' => 'mod/assign:submit',
     ],
+    'assignsubmission_bloboffload_refresh_upload_target' => [
+        'classname' => 'assignsubmission_bloboffload\external\refresh_upload_target',
+        'methodname' => 'execute',
+        'description' => 'Renew the short-lived Azure URL for a pending upload.',
+        'type' => 'write',
+        'ajax' => true,
+        'capabilities' => 'mod/assign:submit',
+    ],
     'assignsubmission_bloboffload_finalize_upload' => [
         'classname' => 'assignsubmission_bloboffload\external\finalize_upload',
         'methodname' => 'execute',

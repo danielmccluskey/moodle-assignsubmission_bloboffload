@@ -54,19 +54,23 @@ class get_upload_config extends external_base {
         );
 
         $assignment = self::resolve_assign($assignid);
+        require_capability('mod/assign:submit', $assignment->get_context());
         $submission = self::resolve_submission($assignment, false);
         $config = self::get_plugin_config($assignment);
         $files = $submission
             ? self::manager()->get_submission_files((int)$submission->id)
             : [];
+        $maxbytes = (int)$config['maxsubmissionsizebytes'];
+        if ($maxbytes <= 0 ||
+                $maxbytes > \assignsubmission_bloboffload\local\azure_blob_storage_service::MAX_FILE_BYTES) {
+            $maxbytes = \assignsubmission_bloboffload\local\azure_blob_storage_service::MAX_FILE_BYTES;
+        }
 
         return [
             'submissionid' => $submission ? (int)$submission->id : 0,
             'maxfiles' => (int)$config['maxfilesubmissions'],
-            'maxbytes' => (int)$config['maxsubmissionsizebytes'],
-            'maxbyteslabel' => (int)$config['maxsubmissionsizebytes'] > 0
-                ? display_size((int)$config['maxsubmissionsizebytes'])
-                : '',
+            'maxbytes' => $maxbytes,
+            'maxbyteslabel' => display_size($maxbytes),
             'filetypeslist' => (string)$config['filetypeslist'],
             'acceptedtypeslabel' => self::get_accepted_types_label(
                 (string)$config['filetypeslist']

@@ -95,6 +95,45 @@ class submission_metadata_manager {
     }
 
     /**
+     * Extend the expiry for a pending upload after issuing a fresh SAS.
+     *
+     * @param int $fileid
+     * @param int $expiresat
+     * @return void
+     */
+    public function extend_pending_upload(int $fileid, int $expiresat): void {
+        global $DB;
+        $file = $this->get_file_by_id($fileid);
+        if ($file->state !== 'pending') {
+            throw new \moodle_exception('invaliduploadtoken', 'assignsubmission_bloboffload');
+        }
+        $metadata = json_decode((string)$file->metadatajson, true) ?: [];
+        $metadata['expiresat'] = $expiresat;
+        $file->metadatajson = json_encode($metadata);
+        $file->timemodified = time();
+        $DB->update_record('assignsubmission_bloboffload_file', $file);
+    }
+
+    /**
+     * Whether another submission attempt still uses a blob.
+     *
+     * @param string $blobpath
+     * @param int $excludingfileid
+     * @return bool
+     */
+    public function has_active_blob_reference(string $blobpath, int $excludingfileid): bool {
+        global $DB;
+        [$insql, $params] = $DB->get_in_or_equal(self::ACTIVE_STATES, SQL_PARAMS_NAMED);
+        $params['blobpath'] = $blobpath;
+        $params['excludingfileid'] = $excludingfileid;
+        return $DB->record_exists_select(
+            'assignsubmission_bloboffload_file',
+            "blobpath = :blobpath AND id <> :excludingfileid AND state $insql",
+            $params
+        );
+    }
+
+    /**
      * Upsert a file metadata record after upload.
      *
      * @param \stdClass $submission
@@ -160,6 +199,9 @@ class submission_metadata_manager {
 
         $allfiles = $this->get_all_submission_files($submissionid);
         foreach ($allfiles as $file) {
+            if (!in_array((string)$file->state, self::ACTIVE_STATES, true)) {
+                continue;
+            }
             $file->state = in_array((int)$file->id, $fileids) ? 'available' : 'deleted';
             $file->timemodified = time();
             $DB->update_record('assignsubmission_bloboffload_file', $file);

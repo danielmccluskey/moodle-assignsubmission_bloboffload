@@ -109,6 +109,18 @@ class finalize_upload extends external_base {
 
         $assignment = self::resolve_assign($assignid);
         $submission = self::resolve_submission($assignment, true);
+        $config = self::get_plugin_config($assignment);
+        $pending = self::manager()->get_file_by_token($uploadtoken);
+        $pendingmeta = $pending ? json_decode((string)$pending->metadatajson, true) : null;
+        if (!$pending || $pending->state !== 'pending' ||
+                (int)$pending->submissionid !== (int)$submission->id ||
+                (int)$pending->userid !== (int)$USER->id || $pending->blobpath !== $blobpath ||
+                $pending->originalfilename !== $filename || (int)$pending->filesize !== $filesize ||
+                $pending->mimetype !== $mimetype ||
+                (int)($pendingmeta['expiresat'] ?? 0) < time() ||
+                (int)$pending->timecreated + azure_blob_storage_service::MAX_UPLOAD_AGE_SECONDS < time()) {
+            throw new \moodle_exception('invaliduploadtoken', 'assignsubmission_bloboffload');
+        }
         $builder = new blob_path_builder();
         $expectedprefix = $builder->build_prefix($assignment, $submission, $USER->id);
         if (strpos($blobpath, $expectedprefix) !== 0) {
@@ -118,7 +130,28 @@ class finalize_upload extends external_base {
             );
         }
 
+        if (count(self::manager()->get_submission_files((int)$submission->id)) >=
+                (int)$config['maxfilesubmissions']) {
+            throw new \moodle_exception('maxfilesreached', 'assignsubmission_bloboffload');
+        }
+        if ((int)$config['maxsubmissionsizebytes'] > 0 &&
+                $filesize > (int)$config['maxsubmissionsizebytes']) {
+            throw new \moodle_exception('maxbytesexceeded', 'assignsubmission_bloboffload');
+        }
+        if ($filesize > azure_blob_storage_service::MAX_FILE_BYTES) {
+            throw new \moodle_exception('maxbytesexceeded', 'assignsubmission_bloboffload');
+        }
+        $util = new \core_form\filetypes_util();
+        if (!$util->is_allowed_file_type($filename, (string)$config['filetypeslist'])) {
+            throw new \moodle_exception('error:filetypenotallowed', 'assignsubmission_bloboffload');
+        }
+
         $storage = new azure_blob_storage_service();
+        $actualetag = $storage->verify_uploaded_blob($blobpath, $filesize);
+        if ($etag !== '' && $etag !== $actualetag) {
+            throw new \moodle_exception('error:blobverificationfailed', 'assignsubmission_bloboffload');
+        }
+        $etag = $actualetag;
         $file = self::manager()->finalize_upload($submission, $USER->id, [
             'uploadtoken' => $uploadtoken,
             'blobpath' => $blobpath,

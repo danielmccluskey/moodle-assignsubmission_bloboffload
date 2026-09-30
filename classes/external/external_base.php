@@ -72,6 +72,9 @@ abstract class external_base extends external_api {
      */
     protected static function get_plugin_config(\assign $assignment): array {
         $plugin = $assignment->get_plugin_by_type('assignsubmission', 'bloboffload');
+        if (!$plugin || !$plugin->is_enabled()) {
+            throw new \moodle_exception('error:submissionnoteditable', 'assignsubmission_bloboffload');
+        }
         $config = (array)$plugin->get_config();
         $config['maxfilesubmissions'] = (int)($config['maxfilesubmissions']
             ?? get_config('assignsubmission_bloboffload', 'maxfiles'));

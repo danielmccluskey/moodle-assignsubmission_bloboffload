@@ -6,7 +6,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {startTransition, useEffect, useRef, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import type {ChangeEvent} from "react";
 
 import {
@@ -17,6 +17,7 @@ import {
     getUploadTarget,
     notifyAlert,
     notifyException,
+    refreshUploadTarget,
 } from "./client";
 import type {BlobOffloadFile, UploaderConfig, UploaderStrings} from "./types";
 
@@ -26,11 +27,25 @@ type Props = {
     strings: UploaderStrings;
 };
 
-type UploadProgressState = {
+type BatchProgressState = {
     filename: string;
-    loadedBytes: number;
+    completedFiles: number;
+    totalFiles: number;
+    completedBytes: number;
+    currentBytes: number;
     totalBytes: number;
-    percent: number;
+    finishing: boolean;
+};
+
+const formatBytes = (bytes: number): string => {
+    if (bytes < 1024) {
+        return `${bytes} B`;
+    }
+
+    const units = ["KB", "MB", "GB", "TB"];
+    const unit = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length);
+    const amount = bytes / 1024 ** unit;
+    return `${new Intl.NumberFormat(undefined, {maximumFractionDigits: amount < 10 ? 1 : 0}).format(amount)} ${units[unit - 1]}`;
 };
 
 const getErrorMessage = (error: unknown): string => {
@@ -57,34 +72,42 @@ const isExpectedUserError = (error: unknown): boolean => {
         "error:filetypenotallowed",
         "error:submissionnoteditable",
         "error:blobdeletefailed",
+        "error:blobverificationfailed",
         "error:filenotfound",
     ].includes(errorcode);
 };
 
-const uploadBlobWithProgress = (
-    uploadUrl: string,
-    localFile: File,
-    onProgress: (progress: UploadProgressState) => void
-): Promise<string> =>
-    new Promise((resolve, reject) => {
-        const request = new XMLHttpRequest();
+const BLOCK_BYTES = 32 * 1024 * 1024;
+const PARALLEL_BLOCKS = 3;
+const MAX_ATTEMPTS = 4;
 
-        request.open("PUT", uploadUrl);
-        request.setRequestHeader("Content-Type", localFile.type || "application/octet-stream");
-        request.setRequestHeader("x-ms-blob-type", "BlockBlob");
+type UploadTarget = {
+    uploadtoken: string;
+    blobpath: string;
+    uploadurl: string;
+    expiresat: number;
+};
+
+type UploadError = Error & {status?: number};
+
+const put = (
+    url: string,
+    body: Blob | string,
+    headers: Record<string, string>,
+    onProgress: (loadedBytes: number) => void
+): Promise<string> => new Promise((resolve, reject) => {
+        const request = new XMLHttpRequest();
+        request.open("PUT", url);
+        request.timeout = 15 * 60 * 1000;
         request.setRequestHeader("x-ms-version", "2023-11-03");
+        for (const [name, value] of Object.entries(headers)) {
+            request.setRequestHeader(name, value);
+        }
 
         request.upload.addEventListener("progress", event => {
-            if (!event.lengthComputable) {
-                return;
+            if (event.lengthComputable) {
+                onProgress(event.loaded);
             }
-
-            onProgress({
-                filename: localFile.name,
-                loadedBytes: event.loaded,
-                totalBytes: event.total,
-                percent: Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100))),
-            });
         });
 
         request.addEventListener("load", () => {
@@ -92,30 +115,138 @@ const uploadBlobWithProgress = (
                 resolve(request.getResponseHeader("etag") || "");
                 return;
             }
-
-            reject(new Error(`Upload failed (${request.status})`));
+            const error = new Error(`Upload failed (HTTP ${request.status})`) as UploadError;
+            error.status = request.status;
+            reject(error);
         });
 
-        request.addEventListener("error", () => {
-            reject(new Error("Upload failed"));
-        });
-
-        request.addEventListener("abort", () => {
-            reject(new Error("Upload cancelled"));
-        });
-
-        request.send(localFile);
+        request.addEventListener("error", () => reject(new Error("Upload failed (network error)")));
+        request.addEventListener("timeout", () => reject(new Error("Upload timed out")));
+        request.send(body);
     });
+
+const uploadBlob = async(
+    assignId: number,
+    target: UploadTarget,
+    localFile: File,
+    onProgress: (loadedBytes: number) => void,
+    onFinishing: () => void
+): Promise<string> => {
+    let currentTarget = target;
+    let refreshPromise: Promise<void> | null = null;
+    const getUrl = async(force = false): Promise<string> => {
+        if (force || Date.now() / 1000 > currentTarget.expiresat - 90) {
+            if (!refreshPromise) {
+                refreshPromise = refreshUploadTarget(assignId, target.uploadtoken)
+                    .then(refreshed => {
+                        currentTarget = {...currentTarget, ...refreshed};
+                    })
+                    .finally(() => {
+                        refreshPromise = null;
+                    });
+            }
+            await refreshPromise;
+        }
+        return currentTarget.uploadurl;
+    };
+
+    const putWithRetry = async(
+        suffix: string,
+        body: Blob | string,
+        headers: Record<string, string>,
+        progress: (loadedBytes: number) => void
+    ): Promise<string> => {
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            const url = (await getUrl()) + suffix;
+            try {
+                return await put(url, body, headers, progress);
+            } catch (error) {
+                progress(0);
+                const status = (error as UploadError).status || 0;
+                if (status === 403) {
+                    await getUrl(true);
+                } else if (status !== 0 && status !== 408 && status !== 429 && status < 500) {
+                    throw error;
+                }
+                if (attempt === MAX_ATTEMPTS - 1) {
+                    throw error;
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** attempt));
+            }
+        }
+        throw new Error("Upload failed");
+    };
+
+    const mimetype = localFile.type || "application/octet-stream";
+    if (localFile.size <= BLOCK_BYTES) {
+        const etag = await putWithRetry("", localFile, {
+            "Content-Type": mimetype,
+            "x-ms-blob-content-type": mimetype,
+            "x-ms-blob-type": "BlockBlob",
+        }, loaded => onProgress(Math.min(localFile.size, loaded)));
+        onProgress(localFile.size);
+        onFinishing();
+        await getUrl(); // Extend the pending record if the upload used most of its SAS lifetime.
+        return etag;
+    }
+
+    const blockCount = Math.ceil(localFile.size / BLOCK_BYTES);
+    const blockIds = Array.from({length: blockCount}, (_, index) => btoa(String(index).padStart(6, "0")));
+    const loaded = new Array<number>(blockCount).fill(0);
+    const reportProgress = () => onProgress(loaded.reduce((sum, bytes) => sum + bytes, 0));
+    let nextBlock = 0;
+    let failed = false;
+    const worker = async() => {
+        while (!failed && nextBlock < blockCount) {
+            const index = nextBlock++;
+            const start = index * BLOCK_BYTES;
+            const end = Math.min(start + BLOCK_BYTES, localFile.size);
+            const suffix = `&comp=block&blockid=${encodeURIComponent(blockIds[index])}`;
+            try {
+                await putWithRetry(suffix, localFile.slice(start, end), {
+                    "Content-Type": "application/octet-stream",
+                }, bytes => {
+                    loaded[index] = Math.min(end - start, bytes);
+                    reportProgress();
+                });
+            } catch (error) {
+                failed = true;
+                throw error;
+            }
+            loaded[index] = end - start;
+            reportProgress();
+        }
+    };
+    const results = await Promise.allSettled(
+        Array.from({length: Math.min(PARALLEL_BLOCKS, blockCount)}, () => worker())
+    );
+    const failure = results.find(result => result.status === "rejected");
+    if (failure && failure.status === "rejected") {
+        throw failure.reason;
+    }
+
+    onFinishing();
+    const blockList = `<?xml version="1.0" encoding="utf-8"?><BlockList>${blockIds.map(
+        id => `<Latest>${id}</Latest>`
+    ).join("")}</BlockList>`;
+    const etag = await putWithRetry("&comp=blocklist", blockList, {
+        "Content-Type": "application/xml",
+        "x-ms-blob-content-type": mimetype,
+    }, () => {});
+    await getUrl(); // Keep the pending token valid until Moodle verifies the committed blob.
+    return etag;
+};
 
 const Uploader = ({assignId, inputName, strings}: Props) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const filesRef = useRef<BlobOffloadFile[]>([]);
+    const uploadingRef = useRef(false);
     const [config, setConfig] = useState<UploaderConfig | null>(null);
     const [files, setFiles] = useState<BlobOffloadFile[]>([]);
-    const [busy, setBusy] = useState(false);
+    const [busy, setBusy] = useState<"upload" | "delete" | null>(null);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
-    const [uploadProgress, setUploadProgress] = useState<UploadProgressState | null>(null);
+    const [uploadProgress, setUploadProgress] = useState<BatchProgressState | null>(null);
 
     useEffect(() => {
         let active = true;
@@ -131,9 +262,8 @@ const Uploader = ({assignId, inputName, strings}: Props) => {
 
                 setConfig(result);
                 filesRef.current = result.files || [];
-                startTransition(() => {
-                    setFiles(result.files || []);
-                });
+                syncInput(filesRef.current);
+                setFiles(result.files || []);
                 setLoading(false);
             })
             .catch(fetchError => {
@@ -155,7 +285,7 @@ const Uploader = ({assignId, inputName, strings}: Props) => {
         filesRef.current = files;
     }, [files]);
 
-    useEffect(() => {
+    const syncInput = (currentFiles: BlobOffloadFile[]) => {
         const root = containerRef.current;
         if (!root) {
             return;
@@ -167,10 +297,32 @@ const Uploader = ({assignId, inputName, strings}: Props) => {
 
         if (input) {
             input.value = JSON.stringify({
-                fileids: files.map(file => file.id),
+                fileids: currentFiles.map(file => file.id),
             });
         }
-    }, [files, inputName]);
+    };
+
+    useEffect(() => {
+        if (config) {
+            syncInput(files);
+        }
+    }, [files, inputName, config]);
+
+    useEffect(() => {
+        const form = containerRef.current?.closest("form");
+        if (!form) {
+            return;
+        }
+        const preventEarlySubmit = (event: Event) => {
+            if (uploadingRef.current) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                void notifyAlert(strings.waitforfiles);
+            }
+        };
+        form.addEventListener("submit", preventEarlySubmit, true);
+        return () => form.removeEventListener("submit", preventEarlySubmit, true);
+    }, [strings.waitforfiles]);
 
     let metaText = "";
     if (config) {
@@ -186,35 +338,35 @@ const Uploader = ({assignId, inputName, strings}: Props) => {
 
     const reportError = async(uploadError: unknown) => {
         setError(getErrorMessage(uploadError) || strings.uploadfailed);
-        setBusy(false);
-        setUploadProgress(null);
         if (!isExpectedUserError(uploadError)) {
             await notifyException(uploadError);
         }
     };
 
-    const uploadFile = async(localFile: File) => {
+    const uploadFile = async(localFile: File, completedFiles: number, completedBytes: number, totalFiles: number,
+        totalBytes: number): Promise<boolean> => {
         if (!config) {
-            return;
+            return false;
         }
 
         if (filesRef.current.length >= config.maxfiles) {
-            await notifyAlert(strings.maxfilesreached);
-            return;
+            setError(strings.maxfilesreached);
+            return false;
         }
 
         if (config.maxbytes > 0 && localFile.size > config.maxbytes) {
-            await notifyAlert(strings.maxbytesexceeded);
-            return;
+            setError(strings.maxbytesexceeded);
+            return false;
         }
 
-        setError("");
-        setBusy(true);
         setUploadProgress({
             filename: localFile.name,
-            loadedBytes: 0,
-            totalBytes: localFile.size,
-            percent: 0,
+            completedFiles,
+            totalFiles,
+            completedBytes,
+            currentBytes: 0,
+            totalBytes,
+            finishing: false,
         });
 
         try {
@@ -225,12 +377,18 @@ const Uploader = ({assignId, inputName, strings}: Props) => {
                 localFile.type || "application/octet-stream"
             );
 
-            const etag = await uploadBlobWithProgress(
-                target.uploadurl,
+            const etag = await uploadBlob(
+                assignId,
+                target,
                 localFile,
-                progress => {
-                    setUploadProgress(progress);
-                }
+                loadedBytes => {
+                    setUploadProgress(progress => progress ? {...progress, currentBytes: loadedBytes} : null);
+                },
+                () => setUploadProgress(progress => progress ? {
+                    ...progress,
+                    currentBytes: localFile.size,
+                    finishing: true,
+                } : null)
             );
 
             const uploadedFile = await finalizeUpload(
@@ -243,39 +401,53 @@ const Uploader = ({assignId, inputName, strings}: Props) => {
                 etag
             );
 
-            setUploadProgress({
-                filename: localFile.name,
-                loadedBytes: localFile.size,
-                totalBytes: localFile.size,
-                percent: 100,
-            });
-
-            startTransition(() => {
-                setFiles(currentFiles => {
-                    const existingIndex = currentFiles.findIndex(file => file.id === uploadedFile.id);
-                    const nextFiles = existingIndex === -1
-                        ? [...currentFiles, uploadedFile]
-                        : currentFiles.map(file => (file.id === uploadedFile.id ? uploadedFile : file));
-                    filesRef.current = nextFiles;
-
-                    return nextFiles;
-                });
-            });
-            setBusy(false);
-            setUploadProgress(null);
+            const nextFiles = [...filesRef.current, uploadedFile];
+            filesRef.current = nextFiles;
+            syncInput(nextFiles);
+            setFiles(nextFiles);
+            setUploadProgress(progress => progress ? {
+                ...progress,
+                completedFiles: completedFiles + 1,
+                completedBytes: completedBytes + localFile.size,
+                currentBytes: 0,
+                finishing: false,
+            } : null);
+            return true;
         } catch (uploadError) {
             await reportError(uploadError);
+            return false;
         }
     };
 
     const handleSelection = async(event: ChangeEvent<HTMLInputElement>) => {
-        const selectedFiles = Array.from(event.target.files || []);
-
-        for (const localFile of selectedFiles) {
-            await uploadFile(localFile);
+        const input = event.target;
+        const selectedFiles = Array.from(input.files || []);
+        if (!selectedFiles.length || busy) {
+            return;
         }
 
-        event.target.value = "";
+        const totalBytes = selectedFiles.reduce((sum, file) => sum + file.size, 0);
+        let completedBytes = 0;
+        let completedFiles = 0;
+        setError("");
+        setBusy("upload");
+        uploadingRef.current = true;
+        try {
+            for (const localFile of selectedFiles) {
+                const uploaded = await uploadFile(localFile, completedFiles, completedBytes,
+                    selectedFiles.length, totalBytes);
+                if (!uploaded) {
+                    break;
+                }
+                completedFiles++;
+                completedBytes += localFile.size;
+            }
+        } finally {
+            uploadingRef.current = false;
+            setBusy(null);
+            setUploadProgress(null);
+            input.value = "";
+        }
     };
 
     const handleDelete = async(fileId: number) => {
@@ -290,27 +462,35 @@ const Uploader = ({assignId, inputName, strings}: Props) => {
         }
 
         setError("");
-        setBusy(true);
+        setBusy("delete");
+        uploadingRef.current = true;
 
         try {
             await deleteUpload(assignId, fileId);
-            startTransition(() => {
-                setFiles(currentFiles => {
-                    const nextFiles = currentFiles.filter(file => file.id !== fileId);
-                    filesRef.current = nextFiles;
-                    return nextFiles;
-                });
-            });
-            setBusy(false);
+            const nextFiles = filesRef.current.filter(file => file.id !== fileId);
+            filesRef.current = nextFiles;
+            syncInput(nextFiles);
+            setFiles(nextFiles);
         } catch (deleteError) {
             await reportError(deleteError);
+        } finally {
+            uploadingRef.current = false;
+            setBusy(null);
         }
     };
+
+    const remainingBytes = uploadProgress
+        ? Math.max(0, uploadProgress.totalBytes - uploadProgress.completedBytes - uploadProgress.currentBytes)
+        : 0;
+    const progressPercent = uploadProgress
+        ? Math.floor(uploadProgress.totalBytes > 0
+            ? ((uploadProgress.completedBytes + uploadProgress.currentBytes) / uploadProgress.totalBytes) * 100
+            : (uploadProgress.completedFiles / uploadProgress.totalFiles) * 100)
+        : 0;
 
     return (
         <div ref={containerRef}>
             <div className="assignsubmission-bloboffload__panel">
-                <div className="assignsubmission-bloboffload__eyebrow">{strings.uploadfiles}</div>
                 <label className="assignsubmission-bloboffload__label">
                     <span className="assignsubmission-bloboffload__prompt">{strings.uploadfiles}</span>
                     <input
@@ -318,10 +498,8 @@ const Uploader = ({assignId, inputName, strings}: Props) => {
                         className="assignsubmission-bloboffload__input form-control"
                         multiple
                         accept={config?.acceptattr || ""}
-                        disabled={busy || loading}
-                        onChange={event => {
-                            void handleSelection(event);
-                        }}
+                        disabled={!!busy || loading || !config}
+                        onChange={event => void handleSelection(event)}
                     />
                 </label>
                 {metaText && <div className="assignsubmission-bloboffload__meta">{metaText}</div>}
@@ -329,32 +507,37 @@ const Uploader = ({assignId, inputName, strings}: Props) => {
 
             <div className="assignsubmission-bloboffload__messages">
                 {error && <div className="alert alert-danger mb-3">{error}</div>}
-                {!error && (busy || loading) && (
-                    <div className="alert alert-info mb-3">{busy ? strings.uploading : strings.loading}</div>
+                {!error && (loading || busy === "delete") && (
+                    <div className="alert alert-info mb-3">{loading ? strings.loading : strings.deleting}</div>
                 )}
             </div>
 
             {uploadProgress && (
-                <div className="assignsubmission-bloboffload__progresscard" aria-live="polite">
+                <div className="assignsubmission-bloboffload__progresscard">
                     <div className="assignsubmission-bloboffload__progresshead">
-                        <div className="assignsubmission-bloboffload__progressname">{uploadProgress.filename}</div>
-                        <div className="assignsubmission-bloboffload__progresspercent">{uploadProgress.percent}%</div>
+                        <div className="assignsubmission-bloboffload__progressname">
+                            {uploadProgress.finishing ? strings.finishing : strings.uploading}: {uploadProgress.filename}
+                        </div>
+                        <div className="assignsubmission-bloboffload__progresspercent">{progressPercent}%</div>
                     </div>
                     <div
                         className="assignsubmission-bloboffload__progressbar"
                         role="progressbar"
                         aria-valuemin={0}
                         aria-valuemax={100}
-                        aria-valuenow={uploadProgress.percent}
-                        aria-label={`${strings.uploading}: ${uploadProgress.filename}`}
+                        aria-valuenow={progressPercent}
+                        aria-label={strings.uploading}
                     >
                         <span
                             className="assignsubmission-bloboffload__progressvalue"
-                            style={{width: `${uploadProgress.percent}%`}}
+                            style={{width: `${progressPercent}%`}}
                         />
                     </div>
                     <div className="assignsubmission-bloboffload__meta">
-                        {uploadProgress.percent}% uploaded
+                        <span aria-live="polite">
+                            {uploadProgress.completedFiles}/{uploadProgress.totalFiles} {strings.filesuploaded}
+                        </span>
+                        {" · "}{formatBytes(remainingBytes)} {strings.remaining}
                     </div>
                 </div>
             )}
@@ -366,7 +549,7 @@ const Uploader = ({assignId, inputName, strings}: Props) => {
                         <span className="assignsubmission-bloboffload__countbadge">{files.length}</span>
                     )}
                 </div>
-                {!files.length && !loading && (
+                {!files.length && !!config && (
                     <div className="assignsubmission-bloboffload__empty">{strings.nofiles}</div>
                 )}
 
@@ -378,12 +561,13 @@ const Uploader = ({assignId, inputName, strings}: Props) => {
                                     <div className="assignsubmission-bloboffload__filename">{file.filename}</div>
                                     <div className="assignsubmission-bloboffload__filemeta">
                                         {file.filesize}
-                                        {file.mimetype ? ` | ${file.mimetype}` : ""}
                                     </div>
                                 </div>
                                 <div className="assignsubmission-bloboffload__actions">
                                     <a
                                         href={file.downloadurl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
                                         className="btn btn-outline-secondary btn-sm"
                                     >
                                         {strings.download}
@@ -391,7 +575,7 @@ const Uploader = ({assignId, inputName, strings}: Props) => {
                                     <button
                                         type="button"
                                         className="btn btn-outline-danger btn-sm"
-                                        disabled={busy}
+                                        disabled={!!busy}
                                         onClick={() => {
                                             void handleDelete(file.id);
                                         }}

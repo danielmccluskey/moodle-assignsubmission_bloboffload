@@ -26,10 +26,10 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'assignsubmission_bloboffload';
-$plugin->version = 2026041601;
-$plugin->requires = 2025092600;
-$plugin->release = '0.1.0';
+$plugin->version = 2026092908;
+$plugin->requires = 2026041000;
+$plugin->release = '0.3.4';
 $plugin->maturity = MATURITY_ALPHA;
 $plugin->dependencies = [
-    'mod_assign' => 2025100601,
+    'mod_assign' => 2026042000,
 ];

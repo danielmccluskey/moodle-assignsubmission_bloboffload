@@ -50,8 +50,6 @@ class delete_upload extends external_base {
      * @return array
      */
     public static function execute(int $assignid, int $fileid): array {
-        global $USER;
-
         [
             'assignid' => $assignid,
             'fileid' => $fileid,
@@ -66,10 +64,9 @@ class delete_upload extends external_base {
         $assignment = self::resolve_assign($assignid);
         $submission = self::resolve_submission($assignment, true);
 
-        $file = self::manager()->get_file_by_id($fileid);
+        $file = self::manager()->get_active_file_by_id($fileid);
         if (
-            (int)$file->userid !== (int)$USER->id
-                || (int)$file->submissionid !== (int)$submission->id
+            (int)$file->submissionid !== (int)$submission->id
         ) {
             throw new \moodle_exception(
                 'error:filenotfound',
@@ -77,8 +74,10 @@ class delete_upload extends external_base {
             );
         }
 
-        $storage = new azure_blob_storage_service();
-        $storage->delete_blob((string)$file->blobpath);
+        if (!self::manager()->has_active_blob_reference((string)$file->blobpath, $fileid)) {
+            $storage = new azure_blob_storage_service();
+            $storage->delete_blob((string)$file->blobpath);
+        }
         self::manager()->mark_deleted($fileid);
         return ['status' => true];
     }

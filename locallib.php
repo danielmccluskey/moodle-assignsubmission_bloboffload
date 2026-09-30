@@ -33,12 +33,57 @@ class assign_submission_bloboffload extends assign_submission_plugin {
     public const MAXSUMMARYFILES = 5;
 
     /**
+     * Only courses in the site allowlist can enable this submission type.
+     *
+     * @return bool
+     */
+    public function is_configurable() {
+        return $this->course_is_allowed();
+    }
+
+    /**
+     * An existing assignment stops accepting blob submissions if its course is removed.
+     *
+     * @return bool
+     */
+    public function is_enabled() {
+        return $this->course_is_allowed() && parent::is_enabled();
+    }
+
+    /**
+     * Check the current assignment's course against the site allowlist.
+     *
+     * @return bool
+     */
+    private function course_is_allowed(): bool {
+        $course = $this->assignment->get_course();
+        if (!$course) {
+            return false;
+        }
+
+        $raw = trim((string)get_config('assignsubmission_bloboffload', 'allowedcourseids'));
+        if ($raw === '*') {
+            return true;
+        }
+        if ($raw === '') {
+            return false;
+        }
+        foreach (preg_split('/[\s,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $id) {
+            if (ctype_digit($id) && (int)$id === (int)$course->id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Get the plugin display name.
      *
      * @return string
      */
     public function get_name() {
-        return get_string('pluginname', 'assignsubmission_bloboffload');
+        $name = trim((string)get_config('assignsubmission_bloboffload', 'displayname'));
+        return $name !== '' ? $name : get_string('pluginname', 'assignsubmission_bloboffload');
     }
 
     /**
@@ -48,8 +93,6 @@ class assign_submission_bloboffload extends assign_submission_plugin {
      * @return void
      */
     public function get_settings(MoodleQuickForm $mform) {
-        global $CFG, $COURSE;
-
         if ($this->assignment->has_instance()) {
             $defaultmaxfiles = $this->get_config('maxfilesubmissions');
             $defaultmaxbytes = $this->get_config('maxsubmissionsizebytes');
@@ -91,11 +134,19 @@ class assign_submission_bloboffload extends assign_submission_plugin {
             'notchecked'
         );
 
-        $choices = get_max_upload_sizes(
-            $CFG->maxbytes,
-            $COURSE->maxbytes,
-            get_config('assignsubmission_bloboffload', 'maxbytes')
-        );
+        // Direct Azure uploads do not pass through PHP's upload size limit.
+        $maxblobbytes = \assignsubmission_bloboffload\local\azure_blob_storage_service::MAX_FILE_BYTES;
+        $choices = [];
+        foreach ([10, 25, 50, 100, 250, 500, 1024, 2048, 4096, 5000, 10240, 20480] as $mib) {
+            $bytes = $mib * 1024 * 1024;
+            $choices[$bytes] = display_size($bytes);
+        }
+        if ($defaultmaxbytes > 0 && $defaultmaxbytes <= $maxblobbytes) {
+            $choices[$defaultmaxbytes] = display_size($defaultmaxbytes);
+        }
+        ksort($choices, SORT_NUMERIC);
+        $selectedmaxbytes = $defaultmaxbytes > 0 && $defaultmaxbytes <= $maxblobbytes
+            ? $defaultmaxbytes : $maxblobbytes;
         $mform->addElement(
             'select',
             'assignsubmission_bloboffload_maxsizebytes',
@@ -107,7 +158,7 @@ class assign_submission_bloboffload extends assign_submission_plugin {
         );
         $mform->setDefault(
             'assignsubmission_bloboffload_maxsizebytes',
-            $defaultmaxbytes
+            $selectedmaxbytes
         );
         $mform->hideIf(
             'assignsubmission_bloboffload_maxsizebytes',
@@ -235,7 +286,10 @@ class assign_submission_bloboffload extends assign_submission_plugin {
                     'deleteconfirm',
                     'assignsubmission_bloboffload'
                 ),
+                'deleting' => get_string('deleting', 'assignsubmission_bloboffload'),
                 'download' => get_string('download', 'assignsubmission_bloboffload'),
+                'filesuploaded' => get_string('filesuploaded', 'assignsubmission_bloboffload'),
+                'finishing' => get_string('finishing', 'assignsubmission_bloboffload'),
                 'loading' => get_string('loading', 'assignsubmission_bloboffload'),
                 'maxbytesexceeded' => get_string(
                     'maxbytesexceeded',
@@ -246,10 +300,11 @@ class assign_submission_bloboffload extends assign_submission_plugin {
                     'assignsubmission_bloboffload'
                 ),
                 'maxsize' => get_string(
-                    'maximumsubmissionsize',
+                    'maxfilesize',
                     'assignsubmission_bloboffload'
                 ),
                 'nofiles' => get_string('nofiles', 'assignsubmission_bloboffload'),
+                'remaining' => get_string('remaining', 'assignsubmission_bloboffload'),
                 'uploadfailed' => get_string(
                     'uploadfailed',
                     'assignsubmission_bloboffload'
@@ -263,6 +318,7 @@ class assign_submission_bloboffload extends assign_submission_plugin {
                     'assignsubmission_bloboffload'
                 ),
                 'view' => get_string('view', 'assignsubmission_bloboffload'),
+                'waitforfiles' => get_string('waitforfiles', 'assignsubmission_bloboffload'),
             ],
         ];
         $context['reactconfigjson'] = json_encode([
@@ -274,7 +330,7 @@ class assign_submission_bloboffload extends assign_submission_plugin {
             ],
             'id' => $context['elementid'],
             'class' => 'assignsubmission-bloboffload',
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS);
 
         $mform->addElement(
             'html',
@@ -300,7 +356,7 @@ class assign_submission_bloboffload extends assign_submission_plugin {
         $allowedfileids = [];
 
         foreach ($payload['fileids'] as $fileid) {
-            $file = $manager->get_file_by_id((int)$fileid);
+            $file = $manager->get_active_file_by_id((int)$fileid);
             if ((int)$file->submissionid !== (int)$submission->id) {
                 throw new moodle_exception('invalidpayload', 'assignsubmission_bloboffload');
             }
@@ -424,7 +480,10 @@ class assign_submission_bloboffload extends assign_submission_plugin {
                 '/mod/assign/submission/bloboffload/download.php',
                 ['fileid' => $file->id]
             );
-            return html_writer::link($url, s($file->originalfilename));
+            return html_writer::link($url, s($file->originalfilename), [
+                'target' => '_blank',
+                'rel' => 'noopener noreferrer',
+            ]);
         }, $files);
 
         return html_writer::alist($items);
@@ -519,10 +578,10 @@ class assign_submission_bloboffload extends assign_submission_plugin {
         );
         return [
             'id' => (int)$file->id,
-            'filename' => s($file->originalfilename),
+            'filename' => $file->originalfilename,
             'filesize' => display_size((int)$file->filesize),
-            'mimetype' => s((string)$file->mimetype),
-            'state' => s($file->state),
+            'mimetype' => (string)$file->mimetype,
+            'state' => $file->state,
             'downloadurl' => $downloadurl->out(false),
             'viewurl' => $viewurl->out(false),
         ];

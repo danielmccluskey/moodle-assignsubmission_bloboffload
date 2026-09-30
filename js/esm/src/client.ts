@@ -55,6 +55,7 @@ export const getUploadTarget = (
     uploadtoken: string;
     blobpath: string;
     uploadurl: string;
+    expiresat: number;
 }> =>
     call("assignsubmission_bloboffload_get_upload_target", {
         assignid: assignId,
@@ -62,6 +63,14 @@ export const getUploadTarget = (
         filesize,
         mimetype,
     });
+
+export const refreshUploadTarget = (assignId: number, uploadtoken: string): Promise<{
+    uploadurl: string;
+    expiresat: number;
+}> => call("assignsubmission_bloboffload_refresh_upload_target", {
+    assignid: assignId,
+    uploadtoken,
+});
 
 export const finalizeUpload = (
     assignId: number,
